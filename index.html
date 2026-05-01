@@ -211,6 +211,7 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
        font-size:.78rem;font-weight:700;opacity:0;transition:all .25s;z-index:70;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body class="kevin">
 
@@ -298,6 +299,8 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
 // =============================================
 const SUPA_URL = 'https://xlrpooacpccdbhyznzkn.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhscnBvb2FjcGNjZGJoeXpuemtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MzUwODMsImV4cCI6MjA5MzIxMTA4M30.Hkislv18j6FrmeJ10ZPgxcP9v7y-8oKiB0duiMXnGUM';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
 
 // =============================================
 // CATÁLOGO 984 FIGURAS
@@ -764,34 +767,15 @@ let supaLoaded = false;
 let pendingOps = {};  // sticker_id -> timeout (debounce)
 
 // =============================================
-// SUPABASE FETCH HELPER
-// =============================================
-async function supaFetch(path, opts={}) {
-  const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
-    headers: {
-      'apikey': SUPA_KEY,
-      'Authorization': `Bearer ${SUPA_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': opts.prefer || 'return=representation',
-      ...opts.headers
-    },
-    ...opts
-  });
-  if (!res.ok && res.status !== 404) {
-    const txt = await res.text();
-    throw new Error(`${res.status}: ${txt}`);
-  }
-  if (res.status === 204 || res.headers.get('content-length')==='0') return null;
-  return res.json().catch(()=>null);
-}
-
-// =============================================
 // LOAD FROM SUPABASE
 // =============================================
 async function loadFromSupabase() {
   setSyncBar('🔄 Cargando colección...', '');
   try {
-    const rows = await supaFetch('coleccion?select=usuario,sticker_id,cantidad');
+    const { data: rows, error } = await db
+      .from('coleccion')
+      .select('usuario,sticker_id,cantidad');
+    if (error) throw error;
     coleccion = { kevin:{}, tommy:{} };
     if (rows) {
       rows.forEach(r => {
@@ -802,8 +786,8 @@ async function loadFromSupabase() {
     setSyncBar('✅ Sincronizado con la nube', 'ok');
     setTimeout(()=>setSyncBar('☁️ En línea','ok'), 2500);
   } catch(e) {
+    console.error('Supabase load error:', e);
     setSyncBar('⚠️ Sin conexión — modo local', 'error');
-    // fallback localStorage
     try {
       const saved = localStorage.getItem('mundial2026');
       if (saved) coleccion = JSON.parse(saved);
@@ -815,7 +799,6 @@ async function loadFromSupabase() {
 // SAVE TO SUPABASE (debounced)
 // =============================================
 function saveSticker(id, cantidad) {
-  // Guardar localmente de inmediato
   try { localStorage.setItem('mundial2026', JSON.stringify(coleccion)); } catch(_){}
 
   if (pendingOps[id]) clearTimeout(pendingOps[id]);
@@ -823,19 +806,21 @@ function saveSticker(id, cantidad) {
     delete pendingOps[id];
     try {
       if (cantidad === 0) {
-        await supaFetch(`coleccion?usuario=eq.${curUser}&sticker_id=eq.${encodeURIComponent(id)}`, {
-          method:'DELETE', prefer:'return=minimal'
-        });
+        const { error } = await db.from('coleccion')
+          .delete()
+          .eq('usuario', curUser)
+          .eq('sticker_id', id);
+        if (error) throw error;
       } else {
-        await supaFetch('coleccion', {
-          method:'POST',
-          prefer:'resolution=merge-duplicates,return=minimal',
-          body: JSON.stringify({ usuario:curUser, sticker_id:id, cantidad })
-        });
+        const { error } = await db.from('coleccion')
+          .upsert({ usuario: curUser, sticker_id: id, cantidad },
+                  { onConflict: 'usuario,sticker_id' });
+        if (error) throw error;
       }
       setSyncBar('✅ Guardado en la nube','ok');
       setTimeout(()=>setSyncBar('☁️ En línea','ok'),1500);
     } catch(e) {
+      console.error('Save error:', e);
       setSyncBar('⚠️ Error al guardar — se reintentará','error');
     }
   }, 600);

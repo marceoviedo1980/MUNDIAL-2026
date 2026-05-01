@@ -105,9 +105,22 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
 .search-input:focus{border-color:var(--user-mid)}
 .clear-btn{border:none;background:none;cursor:pointer;color:#94a3b8;font-size:1rem;padding:0 .2rem}
 
-/* ======================== PILLS ======================== */
+/* ======================== FILTER BAR ======================== */
+.filter-bar{display:flex;gap:.3rem;padding:.35rem .5rem;background:#fff;
+            border-bottom:1px solid #e2e8f0;overflow-x:auto;-webkit-overflow-scrolling:touch;
+            position:sticky;top:238px;z-index:37;scrollbar-width:none}
+.filter-bar::-webkit-scrollbar{display:none}
+.fbtn{flex-shrink:0;padding:.2rem .65rem;border-radius:999px;border:2px solid #e2e8f0;
+      font-weight:700;font-size:.7rem;cursor:pointer;background:#f8fafc;color:#64748b;
+      transition:all .12s;white-space:nowrap}
+.fbtn.active{border-color:var(--user-pri);background:var(--user-pri);color:#fff}
+.fbtn.f-miss.active{border-color:#64748b;background:#64748b;color:#fff}
+.fbtn.f-have.active{border-color:#22c55e;background:#22c55e;color:#fff}
+.fbtn.f-dup.active{border-color:#f97316;background:#f97316;color:#fff}
+
+/* ======================== PILLS (ajuste sticky top) ======================== */
 .pills-wrap{background:#fff;border-bottom:1px solid #e2e8f0;overflow-x:auto;
-            -webkit-overflow-scrolling:touch;position:sticky;top:238px;z-index:38;
+            -webkit-overflow-scrolling:touch;position:sticky;top:274px;z-index:36;
             scrollbar-width:none}
 .pills-wrap::-webkit-scrollbar{display:none}
 .pills{display:flex;gap:.3rem;padding:.4rem;width:max-content}
@@ -144,9 +157,9 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
            line-height:1.1;text-align:center;color:#334155}
 .card.have .card-code{color:var(--user-text)}
 .card.dup .card-code{color:#c2410c}
-.card-name{font-size:.5rem;color:#94a3b8;text-align:center;overflow:hidden;
+.card-name{font-size:.62rem;color:#1e293b;text-align:center;overflow:hidden;
            text-overflow:ellipsis;white-space:nowrap;width:100%;line-height:1.2;margin-top:.1rem;
-           padding:0 .15rem}
+           padding:0 .15rem;font-weight:500}
 .card-ico{margin-top:auto;padding-top:.2rem;font-size:.85rem;line-height:1}
 .ico-m{color:#cbd5e1;font-size:.7rem}
 .ico-h{color:var(--user-mid);font-weight:900}
@@ -213,7 +226,7 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
 
 <!-- HEADER -->
 <div class="hdr" id="hdr">
-  <div class="hdr-title">⚽ ÁLBUM PANINI FIFA WC 2026 <span class="hdr-sub">by Kevin & Tommy</span></div>
+  <div class="hdr-title">⚽ ÁLBUM PANINI FIFA WC 2026 <span class="hdr-sub">Creado por: Marcelo Oviedo L.</span></div>
   <div class="user-tabs">
     <button class="user-btn active" id="btn-kevin" onclick="setUser('kevin')">
       <span class="user-dot"></span>KEVIN
@@ -255,6 +268,14 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
   <button class="clear-btn" onclick="document.getElementById('search').value='';render()">✕</button>
 </div>
 
+<!-- FILTER BAR -->
+<div class="filter-bar" id="fbar">
+  <button class="fbtn active" id="fb-all"  onclick="setFilter('all')">📋 Todos</button>
+  <button class="fbtn f-miss"  id="fb-miss" onclick="setFilter('miss')">● Faltan</button>
+  <button class="fbtn f-have"  id="fb-have" onclick="setFilter('have')">✓ Tengo</button>
+  <button class="fbtn f-dup"   id="fb-dup"  onclick="setFilter('dup')">×N Duplic.</button>
+</div>
+
 <!-- SECTION PILLS -->
 <div class="pills-wrap" id="pwrap">
   <div class="pills" id="pills"></div>
@@ -267,7 +288,7 @@ body.tommy{background:linear-gradient(180deg,#fee2e2 0px,#f1f5f9 140px)}
 <div class="legend" id="legend">
   <div class="leg"><span style="color:rgba(255,255,255,.4)">●</span> Falta</div>
   <div class="leg"><span id="leg-have" style="font-weight:900">✓</span> Tengo</div>
-  <div class="leg"><span style="color:#fb923c;font-weight:900">×2</span> Duplicada</div>
+  <div class="leg"><span style="color:#fb923c;font-weight:900">×N</span> Duplic.</div>
   <div class="leg" style="opacity:.6">· toca para cambiar</div>
 </div>
 
@@ -736,6 +757,7 @@ const TOTAL = CATALOG.reduce((a,s)=>a+s.stickers.length,0);
 let curUser = 'kevin';
 let curView = 'album';
 let curSec  = 'all';
+let curFilter = 'all';   // 'all' | 'miss' | 'have' | 'dup'
 // coleccion[user][sticker_id] = cantidad (1 o 2+)
 let coleccion = { kevin:{}, tommy:{} };
 let supaLoaded = false;
@@ -824,7 +846,7 @@ function saveSticker(id, cantidad) {
 // =============================================
 function toggle(id) {
   const cur = coleccion[curUser][id] || 0;
-  const next = cur >= 2 ? 0 : cur + 1;
+  const next = cur >= 9 ? 0 : cur + 1;
   if (next === 0) delete coleccion[curUser][id];
   else coleccion[curUser][id] = next;
   saveSticker(id, next);
@@ -850,6 +872,10 @@ function showToast(msg) {
 
 function setUser(u) {
   curUser = u;
+  curFilter = 'all';
+  ['all','miss','have','dup'].forEach(k => {
+    document.getElementById('fb-'+k).classList.toggle('active', k==='all');
+  });
   document.body.className = u;
   document.getElementById('btn-kevin').classList.toggle('active', u==='kevin');
   document.getElementById('btn-tommy').classList.toggle('active', u==='tommy');
@@ -857,11 +883,20 @@ function setUser(u) {
   render();
 }
 
+function setFilter(f) {
+  curFilter = f;
+  ['all','miss','have','dup'].forEach(k => {
+    document.getElementById('fb-'+k).classList.toggle('active', k===f);
+  });
+  render();
+}
+
 function setView(v) {
   curView = v;
   document.getElementById('vt-album').classList.toggle('active', v==='album');
   document.getElementById('vt-trade').classList.toggle('active', v==='trade');
-  document.getElementById('srow').style.display = v==='album' ? 'flex' : 'none';
+  document.getElementById('srow').style.display  = v==='album' ? 'flex'  : 'none';
+  document.getElementById('fbar').style.display  = v==='album' ? 'flex'  : 'none';
   document.getElementById('pwrap').style.display = v==='album' ? 'block' : 'none';
   render();
 }
@@ -925,16 +960,29 @@ function cardCls(id) {
 // =============================================
 function getVisible() {
   const q = (document.getElementById('search')?.value||'').toLowerCase();
+
+  // Función de filtro por estado
+  const stateOk = (id) => {
+    const v = coleccion[curUser][id] || 0;
+    if (curFilter === 'miss')  return v === 0;
+    if (curFilter === 'have')  return v === 1;
+    if (curFilter === 'dup')   return v >= 2;
+    return true; // 'all'
+  };
+
   if (curSec !== 'all') {
     const s = CATALOG.find(x=>x.code===curSec);
     if (!s) return [];
-    const st = q ? s.stickers.filter(x=>`${s.code} ${x.num} ${x.name}`.toLowerCase().includes(q)) : s.stickers;
+    const st = s.stickers.filter(x => {
+      const id = `${s.code}-${x.num}`;
+      return stateOk(id) && (!q || `${s.code} ${x.num} ${x.name}`.toLowerCase().includes(q));
+    });
     return [{...s, stickers:st}];
   }
-  if (!q) return CATALOG;
-  return CATALOG.map(s=>({...s, stickers:s.stickers.filter(st=>
-    `${s.code} ${st.num} ${st.name} ${s.name}`.toLowerCase().includes(q)
-  )})).filter(s=>s.stickers.length);
+  return CATALOG.map(s=>({...s, stickers:s.stickers.filter(st=>{
+    const id = `${s.code}-${st.num}`;
+    return stateOk(id) && (!q || `${s.code} ${st.num} ${st.name} ${s.name}`.toLowerCase().includes(q));
+  })})).filter(s=>s.stickers.length);
 }
 
 function render() {
